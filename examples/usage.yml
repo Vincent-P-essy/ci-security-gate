@@ -1,0 +1,20 @@
+# ---------------------------------------------------------------------------
+# Example: using ci-security-gate in any repository of the portfolio
+#
+# Copy this file to .github/workflows/security.yml in your repo and you're done.
+# ---------------------------------------------------------------------------
+name: Security Gate
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+
+jobs:
+  security:
+    name: CI Security Gate
+    uses: vincent-p-essy/ci-security-gate/.github/workflows/gate.yml@main
+    with:
+      python_project: true        # set to false if not a Python project
+      dockerfile_path: 'Dockerfile'  # adjust if your Dockerfile lives elsewhere
+      fail_on_warn: false         # set to true to block merges on warnings
