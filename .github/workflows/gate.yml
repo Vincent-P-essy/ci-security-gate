@@ -1,0 +1,180 @@
+name: CI Security Gate
+
+on:
+  workflow_call:
+    inputs:
+      python_project:
+        description: 'Whether this is a Python project (enables pip-audit)'
+        type: boolean
+        default: true
+      dockerfile_path:
+        description: 'Path to the Dockerfile to lint'
+        type: string
+        default: 'Dockerfile'
+      fail_on_warn:
+        description: 'Fail the gate if any warnings are found'
+        type: boolean
+        default: false
+    outputs:
+      security_score:
+        description: 'Overall security gate result: PASS, WARN or FAIL'
+        value: ${{ jobs.security-score.outputs.result }}
+
+jobs:
+
+  secrets-scan:
+    name: Secret Scanning
+    runs-on: ubuntu-latest
+    continue-on-error: true
+    outputs:
+      findings_count: ${{ steps.scan.outputs.findings_count }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Run secret scanner
+        id: scan
+        run: |
+          python ${{ github.action_path }}/scripts/check_secrets.py \
+            --output secrets-report.json \
+            --root .
+          COUNT=$(python -c "import json,sys; d=json.load(open('secrets-report.json')); print(len(d.get('findings',[])))")
+          echo "findings_count=$COUNT" >> $GITHUB_OUTPUT
+        shell: bash
+
+      - name: Upload secrets report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: secrets-report
+          path: secrets-report.json
+          retention-days: 7
+
+  pip-audit:
+    name: Dependency Audit
+    runs-on: ubuntu-latest
+    continue-on-error: true
+    if: inputs.python_project
+    outputs:
+      vuln_count: ${{ steps.audit.outputs.vuln_count }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install pip-audit
+        run: pip install pip-audit
+
+      - name: Run pip-audit
+        id: audit
+        run: |
+          if [ -f requirements.txt ]; then
+            pip-audit --format json -o pip-audit-report.json -r requirements.txt || true
+            COUNT=$(python -c "
+import json, sys
+try:
+    data = json.load(open('pip-audit-report.json'))
+    vulns = data.get('dependencies', [])
+    total = sum(len(d.get('vulns', [])) for d in vulns)
+    print(total)
+except Exception:
+    print(0)
+")
+            echo "vuln_count=$COUNT" >> $GITHUB_OUTPUT
+          else
+            echo 'No requirements.txt found, skipping pip-audit'
+            echo '{"dependencies": [], "skipped": true}' > pip-audit-report.json
+            echo "vuln_count=0" >> $GITHUB_OUTPUT
+          fi
+        shell: bash
+
+      - name: Upload pip-audit report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: pip-audit-report
+          path: pip-audit-report.json
+          retention-days: 7
+
+  dockerfile-lint:
+    name: Dockerfile Lint
+    runs-on: ubuntu-latest
+    continue-on-error: true
+    outputs:
+      dockerfile_result: ${{ steps.lint.outputs.result }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Run Dockerfile linter
+        id: lint
+        run: |
+          if [ -f "${{ inputs.dockerfile_path }}" ]; then
+            python ${{ github.action_path }}/scripts/check_dockerfile.py \
+              --dockerfile "${{ inputs.dockerfile_path }}" \
+              --output dockerfile-report.json
+            RESULT=$(python -c "import json; d=json.load(open('dockerfile-report.json')); print(d.get('result','UNKNOWN'))")
+            echo "result=$RESULT" >> $GITHUB_OUTPUT
+          else
+            echo "Dockerfile not found at ${{ inputs.dockerfile_path }}, skipping."
+            echo '{"result": "SKIP", "checks": []}' > dockerfile-report.json
+            echo "result=SKIP" >> $GITHUB_OUTPUT
+          fi
+        shell: bash
+
+      - name: Upload Dockerfile report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: dockerfile-report
+          path: dockerfile-report.json
+          retention-days: 7
+
+  security-score:
+    name: Security Score
+    runs-on: ubuntu-latest
+    needs: [secrets-scan, pip-audit, dockerfile-lint]
+    if: always()
+    outputs:
+      result: ${{ steps.score.outputs.result }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Download all reports
+        uses: actions/download-artifact@v4
+        with:
+          merge-multiple: true
+        continue-on-error: true
+
+      - name: Compute security score
+        id: score
+        env:
+          SECRETS_FINDINGS: ${{ needs.secrets-scan.outputs.findings_count }}
+          VULN_COUNT: ${{ needs.pip-audit.outputs.vuln_count }}
+          DOCKERFILE_RESULT: ${{ needs.dockerfile-lint.outputs.dockerfile_result }}
+          FAIL_ON_WARN: ${{ inputs.fail_on_warn }}
+        run: |
+          python ${{ github.action_path }}/scripts/score.py
+        shell: bash
