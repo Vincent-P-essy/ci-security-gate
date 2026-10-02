@@ -9,6 +9,14 @@
 
 ---
 
+<!-- execution-capture -->
+## Execution preview
+
+![ci-security-gate](docs/screenshots/execution.png)
+
+Dockerfile checks executed on two included demonstration files. Exit 1 on the deliberately unsafe fixture is the expected rejection. [Verification](docs/verification.md).
+<!-- /execution-capture -->
+
 ## What it does
 
 `ci-security-gate` is a **GitHub reusable workflow** that runs three independent security checks on any repository in the portfolio and produces a consolidated Markdown report in the GitHub Step Summary:

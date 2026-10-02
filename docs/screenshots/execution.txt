@@ -1,0 +1,21 @@
+$ python scripts/check_dockerfile.py --dockerfile docs/examples/good.Dockerfile
+Dockerfile: docs/examples/good.Dockerfile
+Overall   : PASS
+
+  ✅ [PASS] non_root_user: Container runs as user "10001".
+  ✅ [PASS] no_latest_tag: All FROM instructions use explicit tags.
+  ✅ [PASS] no_secrets_in_env: No secrets detected in ENV instructions.
+  ✅ [PASS] no_pipe_install: No curl/wget pipe-to-shell patterns found.
+
+Exit: 0
+
+$ python scripts/check_dockerfile.py --dockerfile docs/examples/bad.Dockerfile
+Dockerfile: docs/examples/bad.Dockerfile
+Overall   : FAIL
+
+  ❌ [FAIL] non_root_user: Last USER instruction sets user to "root" (root).
+  ⚠️ [WARN] no_latest_tag: FROM uses :latest tag (non-reproducible): python:latest
+  ❌ [FAIL] no_secrets_in_env: Secret-like variable(s) set via ENV: ['ENV SECRET=demonstration-only']
+  ✅ [PASS] no_pipe_install: No curl/wget pipe-to-shell patterns found.
+
+Exit: 1
