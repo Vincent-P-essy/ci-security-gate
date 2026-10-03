@@ -1,6 +1,5 @@
 # ci-security-gate
 
-[![Security Gate](https://img.shields.io/badge/security-gate-passing-brightgreen?logo=githubactions)](https://github.com/vincent-p-essy/ci-security-gate/actions)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 [![Python 3.11](https://img.shields.io/badge/python-3.11-blue.svg)](https://www.python.org/downloads/)
 
@@ -10,13 +9,6 @@
 ---
 
 <!-- execution-capture -->
-## Execution preview
-
-![ci-security-gate](docs/screenshots/execution.png)
-
-Dockerfile checks executed on two included demonstration files. Exit 1 on the deliberately unsafe fixture is the expected rejection. [Verification](docs/verification.md).
-<!-- /execution-capture -->
-
 ## What it does
 
 `ci-security-gate` is a **GitHub reusable workflow** that runs three independent security checks on any repository in the portfolio and produces a consolidated Markdown report in the GitHub Step Summary:
@@ -125,7 +117,6 @@ jobs:
 The green badge on each repo links back here:
 
 ```markdown
-[![Security Gate](https://img.shields.io/badge/security-gate-passing-brightgreen?logo=githubactions)](https://github.com/vincent-p-essy/ci-security-gate)
 ```
 
 This creates a single source of truth: update the gate here, all repos benefit immediately on their next push.
